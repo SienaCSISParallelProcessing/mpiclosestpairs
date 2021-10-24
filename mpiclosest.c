@@ -235,8 +235,10 @@ int main(int argc, char *argv[]) {
     printf("Distance calculation balance: min %ld, max %ld, avg: %.2f\n",
 	   mincalcs, maxcalcs, ((1.0*totalcalcs)/(numprocs-1)));
     for (worker_rank = 1; worker_rank < numprocs; worker_rank++) {
-      printf("%d: %d jobs, %ld distance calculations, difference from avg: %.2f\n", worker_rank,
-	     jobs_per_proc[worker_rank], dcalcs_per_proc[worker_rank],
+      printf("%d: %d job%s, %ld distance calculations, difference from avg: %.2f\n",
+	     worker_rank, jobs_per_proc[worker_rank],
+	     (jobs_per_proc[worker_rank] == 1 ? "" : "s"),
+	     dcalcs_per_proc[worker_rank],
 	     (dcalcs_per_proc[worker_rank]-((1.0*totalcalcs)/(numprocs-1))));
     }
   }
