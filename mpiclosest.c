@@ -152,9 +152,34 @@ int main(int argc, char *argv[]) {
 	     MPI_COMM_WORLD);
 
   if (rank == 0) {
+    // compute some stats
+    int minjobs = jobs_per_proc[1];
+    int maxjobs = jobs_per_proc[1];
+    double avgjobs = 1.0*(argc-1)/(numprocs-1);
+    long mincalcs = dcalcs_per_proc[1];
+    long maxcalcs = dcalcs_per_proc[1];
+    long totalcalcs = dcalcs_per_proc[1];
+    for (worker_rank = 2; worker_rank < numprocs; worker_rank++) {
+      if (jobs_per_proc[worker_rank] < minjobs)
+	minjobs = jobs_per_proc[worker_rank];
+      if (jobs_per_proc[worker_rank] > maxjobs)
+	maxjobs = jobs_per_proc[worker_rank];
+      if (dcalcs_per_proc[worker_rank] < mincalcs)
+	mincalcs = dcalcs_per_proc[worker_rank];
+      if (dcalcs_per_proc[worker_rank] > maxcalcs)
+	maxcalcs = dcalcs_per_proc[worker_rank];
+      totalcalcs += dcalcs_per_proc[worker_rank];
+    }
+    printf("%d workers processed %d jobs with about %ld distance calculations\n",
+	   (numprocs-1), (argc-1), totalcalcs);
+    printf("Job balance: min %d, max %d, avg: %.2f\n", minjobs, maxjobs,
+	   avgjobs);
+    printf("Distance calculation balance: min %ld, max %ld, avg: %.2f\n",
+	   mincalcs, maxcalcs, ((1.0*totalcalcs)/(numprocs-1)));
     for (worker_rank = 1; worker_rank < numprocs; worker_rank++) {
-      printf("%d: %d jobs, %ld distance calculations\n", worker_rank,
-	     jobs_per_proc[worker_rank], dcalcs_per_proc[worker_rank]);
+      printf("%d: %d jobs, %ld distance calculations, difference from avg: %.2f\n", worker_rank,
+	     jobs_per_proc[worker_rank], dcalcs_per_proc[worker_rank],
+	     (dcalcs_per_proc[worker_rank]-((1.0*totalcalcs)/(numprocs-1))));
     }
   }
   
