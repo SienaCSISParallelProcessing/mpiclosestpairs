@@ -23,7 +23,7 @@ int main(int argc, char *argv[]) {
   long dcalcs = 0;
 
   int worker_rank;
-
+  int num_tasks;
   
   MPI_Init(&argc, &argv);
   MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
@@ -33,21 +33,26 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "Must have at least 2 processes\n");
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
+
+  // all parameters except argv[0] (program name) and argv[1] (input
+  // ordering) will be filenames to load, so the number of tasks
+  // is argc - 2
+  num_tasks = argc - 2;
   
   // the rank 0 process is responsible for doling out work to all of
   // the other processes
   if (rank == 0) {
     
-    if (argc < 2) {
-      fprintf(stderr, "Usage: %s filenames\n", argv[0]);
+    if (argc < 3) {
+      fprintf(stderr, "Usage: %s orig|alpha|sorted|random filenames\n", argv[0]);
       MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
-    printf("Have %d tasks to be done by %d worker processes\n", (argc-1),
+    printf("Have %d tasks to be done by %d worker processes\n", num_tasks,
 	   (numprocs-1));
     
-    // what's the next task to be sent out?
-    int next_task = 1;
+    // what's the next task to be sent out? (index into argv)
+    int next_task = 2;
 
     // how many worker processes are currently active?
     int active_workers = 0;
@@ -155,7 +160,7 @@ int main(int argc, char *argv[]) {
     // compute some stats
     int minjobs = jobs_per_proc[1];
     int maxjobs = jobs_per_proc[1];
-    double avgjobs = 1.0*(argc-1)/(numprocs-1);
+    double avgjobs = 1.0*num_tasks/(numprocs-1);
     long mincalcs = dcalcs_per_proc[1];
     long maxcalcs = dcalcs_per_proc[1];
     long totalcalcs = dcalcs_per_proc[1];
@@ -171,7 +176,7 @@ int main(int argc, char *argv[]) {
       totalcalcs += dcalcs_per_proc[worker_rank];
     }
     printf("%d workers processed %d jobs with about %ld distance calculations\n",
-	   (numprocs-1), (argc-1), totalcalcs);
+	   (numprocs-1), num_tasks, totalcalcs);
     printf("Job balance: min %d, max %d, avg: %.2f\n", minjobs, maxjobs,
 	   avgjobs);
     printf("Distance calculation balance: min %ld, max %ld, avg: %.2f\n",
