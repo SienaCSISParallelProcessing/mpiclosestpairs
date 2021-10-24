@@ -19,6 +19,31 @@ typedef struct cptask {
   char *filename;
 } cptask;
 
+
+// helper function to read only up to the number of vertices from a
+// TMG file and return that number
+int read_tmg_vertex_count(char *filename) {
+
+  FILE *fp = fopen(filename, "r");
+  if (!fp) {
+    fprintf(stderr, "Cannot open file %s for reading.\n", filename);
+    MPI_Abort(MPI_COMM_WORLD, 1);
+  }
+
+  // read over first line
+  char temp[100];
+  fscanf(fp, "%s %s %s", temp, temp, temp);
+  
+  // read number of vertices
+  int nv;
+  fscanf(fp, "%d", &nv);
+
+  // that's all we need for now
+  fclose(fp);
+
+  return nv;
+}
+
 int main(int argc, char *argv[]) {
   
   int numprocs, rank;
@@ -81,18 +106,60 @@ int main(int argc, char *argv[]) {
     // allocate and populate our "bag of tasks" array
     cptask **tasks = (cptask **)malloc(num_tasks*sizeof(cptask *));
 
+    // add the first at pos 0, since we know there's at least one and
+    // this will eliminate some special cases in our code below.
+    tasks[0] = (cptask *)malloc(sizeof(cptask));
+    tasks[0]->filename = argv[2];
+    if (ordering == 2) {
+      tasks[0]->num_vertices = read_tmg_vertex_count(argv[2]);
+    }
+
     // get them all in
-    for (i = 0; i < num_tasks; i++) {
+    for (i = 1; i < num_tasks; i++) {
       cptask *taski = (cptask *)malloc(sizeof(cptask));
       taski->filename = argv[i+2];
+      int pos = i;
+      int insertat;
       switch (ordering) {
 
       case 0:
 	// original ordering as specified by argv
 	tasks[i] = taski;
 	break;
-      }
       
+
+      case 1:
+	// alphabetical order by filename
+	while (pos > 0 && strcmp(taski->filename, tasks[pos-1]->filename) < 0) {
+	  tasks[pos] = tasks[pos-1];
+	  pos--;
+	}
+	tasks[pos] = taski;
+	
+	break;
+
+      case 2:
+	// order by size largest to smallest number of vertices
+	taski->num_vertices = read_tmg_vertex_count(taski->filename);
+	printf("Got %d nv for %s\n", taski->num_vertices, taski->filename);
+	while (pos > 0 && taski->num_vertices >= tasks[pos-1]->num_vertices) {
+	  tasks[pos] = tasks[pos-1];
+	  pos--;
+	}
+	tasks[pos] = taski;
+
+	break;
+
+      case 3:
+	// order randomly
+        insertat = random()%(pos+1);
+	while (pos > insertat) {
+	  tasks[pos] = tasks[pos-1];
+	  pos--;
+	}
+	tasks[pos] = taski;
+	break;
+      }
     }
     
     // what's the next task to be sent out? (index into tasks array)
