@@ -129,7 +129,7 @@ int main(int argc, char *argv[]) {
       dcalcs += job_calcs;
       
       sprintf(response,
-	      "%s closest pair #%d %s (%.6f,%.6f) and #%d %s (%.6f,%.6f) distance %.12f",
+	      "%s closest pair #%d %s (%.6f,%.6f) and #%d %s (%.6f,%.6f) distance %.15f",
 	      task, v1, g->vertices[v1]->w.label,
 	      g->vertices[v1]->w.coords.lat, g->vertices[v1]->w.coords.lng,
 	      v2, g->vertices[v2]->w.label,
