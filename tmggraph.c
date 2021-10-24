@@ -86,14 +86,15 @@ void tmg_waypoint_print_by_index(int vnum, void *call_data) {
 }
 
 #define EARTH_RADIUS 3963.1
-#define EQUAL_POINT_TOLERANCE 0.001
+#define EQUAL_POINT_TOLERANCE 0.0000001
 
 double tmg_distance_latlng(tmg_latlng *p1, tmg_latlng *p2) {
 
   // are they close enough or exactly the same point?
   if ((fabs(p1->lat-p2->lat) < EQUAL_POINT_TOLERANCE) &&
-      (fabs(p1->lng-p2->lng) < EQUAL_POINT_TOLERANCE))
+      (fabs(p1->lng-p2->lng) < EQUAL_POINT_TOLERANCE)) {
     return 0.0;
+  }
 
   // coordinates in radians
   double rlat1 = M_PI * p1->lat / 180.0;
