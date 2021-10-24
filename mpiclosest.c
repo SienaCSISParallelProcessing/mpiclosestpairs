@@ -13,8 +13,14 @@
 
 #include "tmggraph.h"
 
-int main(int argc, char *argv[]) {
+// struct to encapsulate info about the tasks in the bag
+typedef struct cptask {
+  int num_vertices;
+  char *filename;
+} cptask;
 
+int main(int argc, char *argv[]) {
+  
   int numprocs, rank;
   // how many jobs?
   int jobs_done = 0;
@@ -24,6 +30,8 @@ int main(int argc, char *argv[]) {
 
   int worker_rank;
   int num_tasks;
+
+  int i;
   
   MPI_Init(&argc, &argv);
   MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
@@ -44,15 +52,51 @@ int main(int argc, char *argv[]) {
   if (rank == 0) {
     
     if (argc < 3) {
-      fprintf(stderr, "Usage: %s orig|alpha|sorted|random filenames\n", argv[0]);
+      fprintf(stderr, "Usage: %s orig|alpha|size|random filenames\n", argv[0]);
       MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
+    // check for a valid ordering in argv[1];
+    char *orderings[] = {
+      "orig",
+      "alpha",
+      "size",
+      "random"
+    };
+    int ordering = -1;
+    for (i = 0; i < 4; i++) {
+      if (strcmp(argv[1], orderings[i]) == 0) {
+	ordering = i;
+	break;
+      }
+    }
+    if (ordering == -1) {
+      fprintf(stderr, "Usage: %s orig|alpha|size|random filenames\n", argv[0]);
+      MPI_Abort(MPI_COMM_WORLD, 1);
+    }      
+
     printf("Have %d tasks to be done by %d worker processes\n", num_tasks,
 	   (numprocs-1));
+
+    // allocate and populate our "bag of tasks" array
+    cptask **tasks = (cptask **)malloc(num_tasks*sizeof(cptask *));
+
+    // get them all in
+    for (i = 0; i < num_tasks; i++) {
+      cptask *taski = (cptask *)malloc(sizeof(cptask));
+      taski->filename = argv[i+2];
+      switch (ordering) {
+
+      case 0:
+	// original ordering as specified by argv
+	tasks[i] = taski;
+	break;
+      }
+      
+    }
     
-    // what's the next task to be sent out? (index into argv)
-    int next_task = 2;
+    // what's the next task to be sent out? (index into tasks array)
+    int next_task = 0;
 
     // how many worker processes are currently active?
     int active_workers = 0;
@@ -62,9 +106,11 @@ int main(int argc, char *argv[]) {
     // tasks
     for (worker_rank = 1; worker_rank < numprocs; worker_rank++) {
 
-      if (next_task < argc) {
-	printf("Sending job %s to %d\n", argv[next_task], worker_rank);
-	MPI_Send(argv[next_task], strlen(argv[next_task])+1, MPI_CHAR,
+      if (next_task < num_tasks) {
+	printf("Sending job %s to %d\n", tasks[next_task]->filename,
+	       worker_rank);
+	MPI_Send(tasks[next_task]->filename,
+		 strlen(tasks[next_task]->filename)+1, MPI_CHAR,
 		 worker_rank, 0, MPI_COMM_WORLD);
 	next_task++;
 	active_workers++;
@@ -87,9 +133,11 @@ int main(int argc, char *argv[]) {
       printf("%d: %s\n", status.MPI_SOURCE, response);
 
       // send the next task or a termination to that process
-      if (next_task < argc) {
-	printf("Sending job %s to %d\n", argv[next_task], status.MPI_SOURCE);
-	MPI_Send(argv[next_task], strlen(argv[next_task])+1, MPI_CHAR,
+      if (next_task < num_tasks) {
+	printf("Sending job %s to %d\n", tasks[next_task]->filename,
+	       status.MPI_SOURCE);
+	MPI_Send(tasks[next_task]->filename,
+		 strlen(tasks[next_task]->filename)+1, MPI_CHAR,
 		 status.MPI_SOURCE, 0, MPI_COMM_WORLD);
 	next_task++;
       }
@@ -99,6 +147,11 @@ int main(int argc, char *argv[]) {
 	active_workers--;
       }
     }
+
+    for (i = 0; i < num_tasks; i++) {
+      free(tasks[i]);
+    }
+    free(tasks);
   }
   else {
     // all worker processes (all except rank 0)
