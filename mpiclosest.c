@@ -72,6 +72,8 @@ int main(int argc, char *argv[]) {
   int num_tasks;
 
   int i;
+
+  double active_time;
   
   MPI_Init(&argc, &argv);
   MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
@@ -118,6 +120,8 @@ int main(int argc, char *argv[]) {
     printf("Have %d tasks to be done by %d worker processes\n", num_tasks,
 	   (numprocs-1));
 
+    active_time = MPI_Wtime();
+
     // allocate and populate our "bag of tasks" array
     cptask **tasks = (cptask **)malloc(num_tasks*sizeof(cptask *));
 
@@ -156,7 +160,6 @@ int main(int argc, char *argv[]) {
       case 2:
 	// order by size largest to smallest number of vertices
 	taski->num_vertices = read_tmg_vertex_count(taski->filename);
-	printf("Got %d nv for %s\n", taski->num_vertices, taski->filename);
 	while (pos > 0 && taski->num_vertices >= tasks[pos-1]->num_vertices) {
 	  tasks[pos] = tasks[pos-1];
 	  pos--;
@@ -230,6 +233,8 @@ int main(int argc, char *argv[]) {
       }
     }
 
+    active_time = MPI_Wtime() - active_time;
+
     for (i = 0; i < num_tasks; i++) {
       free(tasks[i]);
     }
@@ -237,6 +242,8 @@ int main(int argc, char *argv[]) {
   }
   else {
     // all worker processes (all except rank 0)
+    
+    active_time = MPI_Wtime();
 
     while (1) {
 
@@ -281,14 +288,19 @@ int main(int argc, char *argv[]) {
       
       tmg_graph_destroy(g);
     }
+    active_time = MPI_Wtime() - active_time;
+
   }
 
   // gather result summaries
   int *jobs_per_proc = (int *)malloc(numprocs * sizeof(int));
   long *dcalcs_per_proc = (long *)malloc(numprocs * sizeof(long));
+  double *time_per_proc = (double *)malloc(numprocs * sizeof(double));
   MPI_Gather(&jobs_done, 1, MPI_INT, jobs_per_proc, 1, MPI_INT, 0,
 	     MPI_COMM_WORLD);
   MPI_Gather(&dcalcs, 1, MPI_LONG, dcalcs_per_proc, 1, MPI_LONG, 0,
+	     MPI_COMM_WORLD);
+  MPI_Gather(&active_time, 1, MPI_DOUBLE, time_per_proc, 1, MPI_DOUBLE, 0,
 	     MPI_COMM_WORLD);
 
   if (rank == 0) {
@@ -299,6 +311,8 @@ int main(int argc, char *argv[]) {
     long mincalcs = dcalcs_per_proc[1];
     long maxcalcs = dcalcs_per_proc[1];
     long totalcalcs = dcalcs_per_proc[1];
+    double mintime = time_per_proc[1];
+    double maxtime = time_per_proc[1];
     for (worker_rank = 2; worker_rank < numprocs; worker_rank++) {
       if (jobs_per_proc[worker_rank] < minjobs)
 	minjobs = jobs_per_proc[worker_rank];
@@ -309,19 +323,27 @@ int main(int argc, char *argv[]) {
       if (dcalcs_per_proc[worker_rank] > maxcalcs)
 	maxcalcs = dcalcs_per_proc[worker_rank];
       totalcalcs += dcalcs_per_proc[worker_rank];
+      if (time_per_proc[worker_rank] < mintime)
+	mintime = time_per_proc[worker_rank];
+      if (time_per_proc[worker_rank] > maxtime)
+	maxtime = time_per_proc[worker_rank];
     }
+
+    printf("Root process was active for %.4f seconds\n", active_time);
     printf("%d workers processed %d jobs with about %ld distance calculations\n",
 	   (numprocs-1), num_tasks, totalcalcs);
     printf("Job balance: min %d, max %d, avg: %.2f\n", minjobs, maxjobs,
 	   avgjobs);
     printf("Distance calculation balance: min %ld, max %ld, avg: %.2f\n",
 	   mincalcs, maxcalcs, ((1.0*totalcalcs)/(numprocs-1)));
+    printf("Active time balance: min %.4f, max %.4f\n", mintime, maxtime);
     for (worker_rank = 1; worker_rank < numprocs; worker_rank++) {
-      printf("%d: %d job%s, %ld distance calculations, difference from avg: %.2f\n",
+      printf("%d: %d job%s, %ld distance calculations, difference from avg: %.2f, time %.4f\n",
 	     worker_rank, jobs_per_proc[worker_rank],
 	     (jobs_per_proc[worker_rank] == 1 ? "" : "s"),
 	     dcalcs_per_proc[worker_rank],
-	     (dcalcs_per_proc[worker_rank]-((1.0*totalcalcs)/(numprocs-1))));
+	     (dcalcs_per_proc[worker_rank]-((1.0*totalcalcs)/(numprocs-1))),
+	     time_per_proc[worker_rank]);
     }
   }
   
