@@ -2,6 +2,21 @@
   Bag of Tasks MPI implementation to find the closest pairs of waypoints
   in each of a set of METAL TMG graph files.
 
+  When launched on p MPI processes, the rank 0 process acts as the
+  master and the other p-1 processes act as workers.
+
+  The tasks to complete are to find the closest pair of points in
+  METAL TMG files given as command-line parameters in argv[2] through
+  argv[argc-1].
+
+  The tasks are distributed in an order based on the string passed as
+  argv[1], which is one of:
+
+      "orig": the order that the files are presented on the command line
+      "alpha": alphabetical order by filename
+      "size": from largest to smallest number of points in the file
+      "random": randomized order
+
   Jim Teresco, Fall 2021
   Siena College
 */
